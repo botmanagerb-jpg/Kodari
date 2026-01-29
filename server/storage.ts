@@ -2,12 +2,16 @@ import { db } from "./db";
 import {
   bots,
   guildSettings,
+  sanctions,
+  backups,
   type InsertBot,
   type Bot,
   type InsertGuildSettings,
-  type GuildSettings
+  type GuildSettings,
+  type Sanction,
+  type Backup
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 
 export interface IStorage {
   // Bots
@@ -20,6 +24,17 @@ export interface IStorage {
   getGuildSettings(guildId: string, botId: number): Promise<GuildSettings | undefined>;
   createGuildSettings(settings: InsertGuildSettings): Promise<GuildSettings>;
   updateGuildSettings(id: number, settings: Partial<InsertGuildSettings>): Promise<GuildSettings>;
+
+  // Sanctions
+  createSanction(sanction: any): Promise<Sanction>;
+  getSanctions(guildId: string, userId: string): Promise<Sanction[]>;
+  clearSanctions(guildId: string, userId: string): Promise<void>;
+  
+  // Backups
+  createBackup(backup: any): Promise<Backup>;
+  getBackup(guildId: string, name: string): Promise<Backup | undefined>;
+  listBackups(guildId: string): Promise<Backup[]>;
+  deleteBackup(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -65,6 +80,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(guildSettings.id, id))
       .returning();
     return updated;
+  }
+
+  async createSanction(sanction: any): Promise<Sanction> {
+    const [created] = await db.insert(sanctions).values(sanction).returning();
+    return created;
+  }
+
+  async getSanctions(guildId: string, userId: string): Promise<Sanction[]> {
+    return await db.select().from(sanctions).where(and(eq(sanctions.guildId, guildId), eq(sanctions.userId, userId)));
+  }
+
+  async clearSanctions(guildId: string, userId: string): Promise<void> {
+    await db.delete(sanctions).where(and(eq(sanctions.guildId, guildId), eq(sanctions.userId, userId)));
+  }
+
+  async createBackup(backup: any): Promise<Backup> {
+    const [created] = await db.insert(backups).values(backup).returning();
+    return created;
+  }
+
+  async getBackup(guildId: string, name: string): Promise<Backup | undefined> {
+    const [backup] = await db.select().from(backups).where(and(eq(backups.guildId, guildId), eq(backups.name, name)));
+    return backup;
+  }
+
+  async listBackups(guildId: string): Promise<Backup[]> {
+    return await db.select().from(backups).where(eq(backups.guildId, guildId));
+  }
+
+  async deleteBackup(id: number): Promise<void> {
+    await db.delete(backups).where(eq(backups.id, id));
   }
 }
 
