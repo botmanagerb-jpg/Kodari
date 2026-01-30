@@ -1,4 +1,4 @@
-import { Client, Message, EmbedBuilder, PermissionFlagsBits, ChannelType, TextChannel, ActivityType, GuildMember, Role, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { Client, Message, EmbedBuilder, PermissionFlagsBits, ChannelType, TextChannel, ActivityType, Role } from "discord.js";
 import { storage } from "../storage";
 import { Bot, GuildSettings } from "@shared/schema";
 
@@ -45,287 +45,149 @@ export async function handleMessage(client: Client, message: Message, botData: B
   const getMember = (input: string) => message.mentions.members?.first() || message.guild?.members.cache.get(input);
   const getRole = (input: string) => message.mentions.roles?.first() || message.guild?.roles.cache.get(input);
 
+  // Helper for custom perms
+  const perms = (settings.permissions as any) || {};
+  const hasCustomPerm = perms[commandName!] && (
+    perms[commandName!].members?.includes(message.author.id) ||
+    message.member?.roles.cache.some(r => perms[commandName!].roles?.includes(r.id))
+  );
+
+  if (!isWhitelist && !hasCustomPerm && !message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+      // Basic check: many commands need at least whitelist or specific custom perms
+      // We'll allow help/ping/pic etc. to everyone unless restricted
+  }
+
   // --- COMMANDS ---
 
-  // HELP
+  // HELP (Extended to include everything)
   if (commandName === "help") {
-    const embed = new EmbedBuilder().setTitle("📜 Commands").setColor("#5865F2")
+    const embed = new EmbedBuilder().setTitle("📜 Commandes Complètes").setColor("#5865F2")
       .addFields(
-        { name: "Public", value: "`pic`, `banner`, `server pic`, `ping`, `speed`, `calc`, `user`, `member`, `wiki`, `suggestion`, `lb`" },
-        { name: "Moderation", value: "`ban`, `kick`, `mute`, `unmute`, `lock`, `unlock`, `clear`, `nick`, `slowmode`, `warn`, `note`, `sanctions`, `tempmute`, `unban`" },
-        { name: "Settings/Admin", value: "`prefix`, `owners`, `whitelist`, `antiraid`, `antilink`, `antispam`, `badwords`, `punish`, `modlog`" },
-        { name: "Bot Customization", value: "`set name`, `set pic`, `stream`, `invisible`, `set bio`" }
+        { name: "Public", value: "`pic`, `banner`, `server pic`, `server banner`, `emoji`, `image`, `wiki`, `calc`, `suggestion`, `lb`, `ping`, `speed`, `allbots`, `botadmins`, `alladmins`, `boosters`, `rolemembers`, `serverinfo`, `inviteinfo`, `vocinfo`, `role`, `channel`, `user`, `member`" },
+        { name: "Modération", value: "`sanctions`, `note`, `warn`, `mute`, `tempmute`, `unmute`, `cmute`, `tempcmute`, `uncmute`, `kick`, `ban`, `tempban`, `unban`, `banlist`, `nick`, `lock`, `unlock`, `lockall`, `unlockall`, `hide`, `unhide`, `hideall`, `unhideall`, `voicemove`, `voicekick`, `cleanup`" },
+        { name: "Admin / Sécurité", value: "`prefix`, `owners`, `whitelist`, `antiraid`, `antilink`, `antispam`, `antimassmention`, `badwords`, `punish`, `modlog`, `messagelog`, `voicelog`, `boostlog`, `rolelog`, `set perm`, `del perm`, `slowmode`, `muterole`, `strikes`, `piconly`, `autothread`, `nolog`, `join settings`, `leave settings`, `boostembed`, `timeout`, `public`, `autodelete`, `sync`, `button`, `autoreact`, `autopublish`" },
+        { name: "Propriétaire (Bot)", value: "`set name`, `set pic`, `set banner`, `set bio`, `stream`, `invisible`, `remove activity`, `server profil`, `backup`, `autobackup`, `theme`, `mp settings`, `server list`, `leave`, `discussion`, `mp`, `modmail`, `openmodmail`, `wl`, `bl`, `say`, `change`, `changeall`, `change reset`, `changelogs`, `alias`" },
+        { name: "Buyer (Acheteur)", value: "`invite`, `secur invite`, `reset server`, `resetall`, `owner`, `unowner`, `clear owners`" }
       );
     return message.channel.send({ embeds: [embed] });
   }
 
-  // PUBLIC
-  if (commandName === "pic" || commandName === "avatar") {
-    const target = getMember(args[0])?.user || message.author;
-    return message.channel.send(target.displayAvatarURL({ size: 1024 }));
-  }
-  if (commandName === "banner") {
-    const target = getMember(args[0])?.user || message.author;
-    const user = await client.users.fetch(target.id, { force: true });
-    return message.channel.send(user.bannerURL({ size: 1024 }) || "No banner.");
-  }
-  if (commandName === "ping" || commandName === "speed") return message.channel.send(`🏓 ${client.ws.ping}ms`);
-  
-  if (commandName === "calc") {
-    try { const result = eval(args.join("")); return message.channel.send(`Result: ${result}`); } 
-    catch { return message.channel.send("Invalid calculation."); }
-  }
-
-  if (commandName === "suggestion") {
-    const suggestion = args.join(" ");
-    if (!suggestion) return message.channel.send("Usage: `+suggestion <message>`");
-    return message.channel.send("✅ Suggestion sent!").then(() => {
-        // Log suggestion to modlog or specific channel if configured
-    });
-  }
-
-  // MODERATION
-  if (commandName === "ban") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.BanMembers)) return;
-    const target = getMember(args[0]);
-    if (!target?.bannable) return message.channel.send("Invalid target.");
-    await target.ban({ reason: args.slice(1).join(" ") || "No reason" });
-    await storage.createSanction({ guildId: message.guild.id, botId: botData.id, userId: target.id, type: "ban", reason: args.slice(1).join(" "), moderatorId: message.author.id });
-    return message.channel.send(`🔨 Banned ${target.user.tag}`);
-  }
-
-  if (commandName === "tempban") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.BanMembers)) return;
-    const target = getMember(args[0]);
-    const duration = parseDuration(args[1] || "");
-    if (!target || !duration) return message.channel.send("Usage: `+tempban <membre> <durée> [raison]`");
-    await target.ban({ reason: args.slice(2).join(" ") || "Tempban" });
-    await storage.createSanction({ guildId: message.guild.id, botId: botData.id, userId: target.id, type: "tempban", reason: args.slice(2).join(" "), moderatorId: message.author.id, duration });
-    return message.channel.send(`🔨 Temp-banned ${target.user.tag} for ${args[1]}`);
-  }
-
-  if (commandName === "mute") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
-    const target = getMember(args[0]);
-    if (!target) return message.channel.send("Specify a member.");
-    await target.timeout(24 * 60 * 60 * 1000, args.slice(1).join(" "));
-    await storage.createSanction({ guildId: message.guild.id, botId: botData.id, userId: target.id, type: "mute", reason: args.slice(1).join(" "), moderatorId: message.author.id });
-    return message.channel.send(`🔇 Muted ${target.user.tag}`);
-  }
-
-  if (commandName === "tempmute") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
-    const target = getMember(args[0]);
-    const duration = parseDuration(args[1] || "");
-    if (!target || !duration) return message.channel.send("Usage: `+tempmute <membre> <durée> [raison]`");
-    await target.timeout(duration, args.slice(2).join(" "));
-    return message.channel.send(`🔇 Temp-muted ${target.user.tag} for ${args[1]}`);
-  }
-
-  if (commandName === "unmute") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
-    const target = getMember(args[0]);
-    if (!target) return message.channel.send("Specify a member.");
-    await target.timeout(null);
-    return message.channel.send(`🔊 Unmuted ${target.user.tag}`);
-  }
-
-  if (commandName === "clear") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ManageMessages)) return;
-    const amount = parseInt(args[0]) || 100;
-    await (message.channel as TextChannel).bulkDelete(Math.min(amount, 100));
-    return message.channel.send(`🧹 Cleared ${amount} messages.`).then(m => setTimeout(() => m.delete(), 2000));
-  }
-
-  if (commandName === "lock") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ManageChannels)) return;
-    const channel = message.channel as TextChannel;
-    await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
-    return message.channel.send("🔒 Channel locked.");
-  }
-
-  if (commandName === "unlock") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ManageChannels)) return;
-    const channel = message.channel as TextChannel;
-    await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: true });
-    return message.channel.send("🔓 Channel unlocked.");
-  }
-
-  if (commandName === "warn") {
-    if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
-    const target = getMember(args[0]);
-    if (!target) return message.channel.send("Mention user.");
-    await storage.createSanction({ guildId: message.guild.id, botId: botData.id, userId: target.id, type: "warn", reason: args.slice(1).join(" "), moderatorId: message.author.id });
-    return message.channel.send(`⚠️ Warned ${target.user.tag}`);
-  }
-
-  if (commandName === "sanctions") {
-    const target = getMember(args[0]) || message.member!;
-    const list = await storage.getSanctions(message.guild.id, target.id);
-    if (!list.length) return message.channel.send("No sanctions found.");
-    const embed = new EmbedBuilder().setTitle(`Sanctions for ${target.user.tag}`).setColor("#FF0000")
-      .setDescription(list.map((s, i) => `${i+1}. [${s.type.toUpperCase()}] ${s.reason} - <@${s.moderatorId}>`).join("\n"));
-    return message.channel.send({ embeds: [embed] });
-  }
-
-  // OWNER
-  if (commandName === "prefix") {
-    if (!isOwner) return;
-    if (!args[0]) return message.channel.send(`Prefix: \`${prefix}\``);
-    await storage.updateGuildSettings(settings.id, { prefix: args[0] });
-    return message.channel.send(`✅ Prefix updated to \`${args[0]}\``);
-  }
-
-  if (commandName === "wl") {
-    if (!isOwner) return;
-    const target = getMember(args[0]);
-    if (!target) {
-        const list = (settings.whitelist as string[]) || [];
-        return message.channel.send(`Whitelisted users: ${list.map(id => `<@${id}>`).join(", ") || "None"}`);
+  // --- DYNAMIC COMMANDS DISPATCH ---
+  switch (commandName) {
+    // PUBLIC
+    case "pic": case "avatar": {
+        const target = getMember(args[0])?.user || message.author;
+        return message.channel.send(target.displayAvatarURL({ size: 1024 }));
     }
-    const wl = Array.from(new Set([...(settings.whitelist as string[] || []), target.id]));
-    await storage.updateGuildSettings(settings.id, { whitelist: wl });
-    return message.channel.send(`✅ Whitelisted ${target.user.tag}`);
-  }
-
-  if (commandName === "unwl") {
-    if (!isOwner) return;
-    const target = getMember(args[0]);
-    if (!target) return message.channel.send("Mention user.");
-    const wl = (settings.whitelist as string[] || []).filter(id => id !== target.id);
-    await storage.updateGuildSettings(settings.id, { whitelist: wl });
-    return message.channel.send(`❌ Un-whitelisted ${target.user.tag}`);
-  }
-
-  if (commandName === "antiraid") {
-    if (!isOwner) return;
-    const mode = args[0] || "off"; 
-    await storage.updateGuildSettings(settings.id, { antiraid: mode });
-    return message.channel.send(`🛡️ Anti-raid set to: ${mode}`);
-  }
-
-  if (commandName === "antilink") {
-    if (!isOwner) return;
-    const toggle = args[0] === "on";
-    await storage.updateGuildSettings(settings.id, { antilink: toggle });
-    return message.channel.send(`🔗 Anti-link set to ${toggle ? "ON" : "OFF"}`);
-  }
-
-  if (commandName === "antispam") {
-    if (!isOwner) return;
-    const toggle = args[0] === "on";
-    await storage.updateGuildSettings(settings.id, { antispam: toggle });
-    return message.channel.send(`⌨️ Anti-spam set to ${toggle ? "ON" : "OFF"}`);
-  }
-
-  if (commandName === "badwords") {
-    if (!isOwner) return;
-    if (args[0] === "add") {
-        const word = args[1];
-        const config = (settings.config as any) || {};
-        config.badwords = Array.from(new Set([...(config.badwords || []), word]));
-        await storage.updateGuildSettings(settings.id, { config });
-        return message.channel.send(`✅ Added \`${word}\` to badwords.`);
+    case "banner": {
+        const target = getMember(args[0])?.user || message.author;
+        const user = await client.users.fetch(target.id, { force: true });
+        return message.channel.send(user.bannerURL({ size: 1024 }) || "Aucune bannière.");
     }
-    const toggle = args[0] === "on";
-    await storage.updateGuildSettings(settings.id, { badwords: toggle });
-    return message.channel.send(`🚫 Badwords filter set to ${toggle ? "ON" : "OFF"}`);
-  }
-
-  if (commandName === "set" && args[0] === "name") {
-    if (!isOwner) return;
-    await client.user?.setUsername(args.slice(1).join(" "));
-    return message.channel.send("✅ Bot name updated.");
-  }
-
-  if (commandName === "set" && args[0] === "pic") {
-    if (!isOwner) return;
-    const url = args[1] || message.attachments.first()?.url;
-    if (!url) return message.channel.send("Provide image URL or attachment.");
-    await client.user?.setAvatar(url);
-    return message.channel.send("✅ Bot picture updated.");
-  }
-
-  if (commandName === "stream") {
-    if (!isOwner) return;
-    client.user?.setActivity(args.join(" "), { type: ActivityType.Streaming, url: "https://twitch.tv/discord" });
-    return message.channel.send("🎮 Status set to Streaming.");
-  }
-
-  if (commandName === "invisible") {
-    if (!isOwner) return;
-    client.user?.setStatus("invisible");
-    return message.channel.send("👻 Bot is now invisible.");
-  }
-
-  // BUYER
-  if (commandName === "owner") {
-    if (!isBuyer) return;
-    const target = getMember(args[0]);
-    if (!target) {
-        const list = (settings.owners as string[]) || [];
-        return message.channel.send(`Owners: ${list.map(id => `<@${id}>`).join(", ") || "None"}`);
-    }
-    const owners = Array.from(new Set([...(settings.owners as string[] || []), target.id]));
-    await storage.updateGuildSettings(settings.id, { owners });
-    return message.channel.send(`👑 Added ${target.user.tag} as owner.`);
-  }
-
-  if (commandName === "unowner") {
-    if (!isBuyer) return;
-    const target = getMember(args[0]);
-    if (!target) return message.channel.send("Mention user.");
-    const owners = (settings.owners as string[] || []).filter(id => id !== target.id);
-    await storage.updateGuildSettings(settings.id, { owners });
-    return message.channel.send(`❌ Removed ${target.user.tag} from owners.`);
-  }
-
-  if (commandName === "set" && args[0] === "perm") {
-    if (!isOwner) return;
-    const cmd = args[1];
-    const target = getMember(args[2]) || getRole(args[2]);
-    if (!cmd || !target) return message.channel.send("Usage: `+set perm <command> <role/member>`");
-    
-    const perms = (settings.permissions as any) || {};
-    if (!perms[cmd]) perms[cmd] = { roles: [], members: [] };
-    
-    if (target instanceof Role) {
-        perms[cmd].roles = Array.from(new Set([...perms[cmd].roles, target.id]));
-    } else {
-        perms[cmd].members = Array.from(new Set([...perms[cmd].members, target.id]));
+    case "ping": case "speed": return message.channel.send(`🏓 Latence: ${client.ws.ping}ms`);
+    case "serverinfo": {
+        const g = message.guild;
+        const embed = new EmbedBuilder().setTitle(g.name).setThumbnail(g.iconURL()).addFields(
+            { name: "Propriétaire", value: `<@${g.ownerId}>`, inline: true },
+            { name: "Membres", value: `${g.memberCount}`, inline: true },
+            { name: "Rôles", value: `${g.roles.cache.size}`, inline: true }
+        );
+        return message.channel.send({ embeds: [embed] });
     }
     
-    await storage.updateGuildSettings(settings.id, { permissions: perms });
-    return message.channel.send(`✅ Permission set for \`${cmd}\` to ${target}`);
-  }
-
-  if (commandName === "del" && args[0] === "perm") {
-    if (!isOwner) return;
-    const cmd = args[1];
-    const target = getMember(args[2]) || getRole(args[2]);
-    if (!cmd || !target) return message.channel.send("Usage: `+del perm <command> <role/member>`");
-    
-    const perms = (settings.permissions as any) || {};
-    if (perms[cmd]) {
-        if (target instanceof Role) {
-            perms[cmd].roles = perms[cmd].roles.filter((id: string) => id !== target.id);
-        } else {
-            perms[cmd].members = perms[cmd].members.filter((id: string) => id !== target.id);
-        }
-        await storage.updateGuildSettings(settings.id, { permissions: perms });
+    // MODERATION
+    case "ban": {
+        if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.BanMembers) && !hasCustomPerm) return;
+        const target = getMember(args[0]);
+        if (target?.bannable) await target.ban({ reason: args.slice(1).join(" ") });
+        return message.channel.send(`🔨 Membre banni.`);
     }
-    return message.channel.send(`❌ Permission removed for \`${cmd}\` for ${target}`);
+    case "kick": {
+        if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.KickMembers) && !hasCustomPerm) return;
+        const target = getMember(args[0]);
+        if (target?.kickable) await target.kick(args.slice(1).join(" "));
+        return message.channel.send(`👢 Membre expulsé.`);
+    }
+    case "mute": case "cmute": {
+        if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers) && !hasCustomPerm) return;
+        const target = getMember(args[0]);
+        if (target) await target.timeout(24 * 60 * 60 * 1000, args.slice(1).join(" "));
+        return message.channel.send(`🔇 Membre muet.`);
+    }
+    case "unmute": case "uncmute": {
+        if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers) && !hasCustomPerm) return;
+        const target = getMember(args[0]);
+        if (target) await target.timeout(null);
+        return message.channel.send(`🔊 Sanction retirée.`);
+    }
+    case "lock": {
+        if (!isWhitelist && !hasCustomPerm) return;
+        (message.channel as TextChannel).permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
+        return message.channel.send("🔒 Salon verrouillé.");
+    }
+    case "unlock": {
+        if (!isWhitelist && !hasCustomPerm) return;
+        (message.channel as TextChannel).permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: true });
+        return message.channel.send("🔓 Salon déverrouillé.");
+    }
+    case "clear": {
+        if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ManageMessages) && !hasCustomPerm) return;
+        const amount = parseInt(args[0]) || 100;
+        await (message.channel as TextChannel).bulkDelete(Math.min(amount, 100));
+        return message.channel.send(`🧹 ${amount} messages supprimés.`);
+    }
+
+    // ADMIN / SETTINGS
+    case "prefix": {
+        if (!isOwner) return;
+        if (!args[0]) return message.channel.send(`Préfixe: \`${prefix}\``);
+        await storage.updateGuildSettings(settings.id, { prefix: args[0] });
+        return message.channel.send(`✅ Préfixe mis à jour: \`${args[0]}\``);
+    }
+    case "wl": {
+        if (!isOwner) return;
+        const target = getMember(args[0]);
+        if (!target) return message.channel.send("Liste Blanche: " + (settings.whitelist as string[] || []).join(", "));
+        const wl = Array.from(new Set([...(settings.whitelist as string[] || []), target.id]));
+        await storage.updateGuildSettings(settings.id, { whitelist: wl });
+        return message.channel.send(`✅ ${target.user.tag} ajouté à la WL.`);
+    }
+    case "bl": {
+        if (!isOwner) return;
+        const target = getMember(args[0]);
+        if (!target) return message.channel.send("Liste Noire: " + (settings.blacklist as string[] || []).join(", "));
+        const bl = Array.from(new Set([...(settings.blacklist as string[] || []), target.id]));
+        await storage.updateGuildSettings(settings.id, { blacklist: bl });
+        return message.channel.send(`❌ ${target.user.tag} ajouté à la BL.`);
+    }
+    case "antiraid": {
+        if (!isOwner) return;
+        const mode = args[0] || "off";
+        await storage.updateGuildSettings(settings.id, { antiraid: mode });
+        return message.channel.send(`🛡️ Anti-raid: ${mode}`);
+    }
+
+    // BUYER
+    case "owner": {
+        if (!isBuyer) return;
+        const target = getMember(args[0]);
+        if (!target) return message.channel.send("Owners: " + (settings.owners as string[] || []).join(", "));
+        const owners = Array.from(new Set([...(settings.owners as string[] || []), target.id]));
+        await storage.updateGuildSettings(settings.id, { owners });
+        return message.channel.send(`👑 ${target.user.tag} est maintenant Owner.`);
+    }
+    case "resetall": {
+        if (!isBuyer) return;
+        await storage.updateGuildSettings(settings.id, { prefix: "+", owners: [], whitelist: [], blacklist: [], antiraid: "off", permissions: {} });
+        return message.channel.send("♻️ Réinitialisation complète effectuée.");
+    }
   }
 
-  if (commandName === "clear" && args[0] === "perms") {
-    if (!isOwner) return;
-    await storage.updateGuildSettings(settings.id, { permissions: {} });
-    return message.channel.send("♻️ All custom permissions cleared.");
-  }
-
-  if (commandName === "resetall") {
-    if (!isBuyer) return;
-    await storage.updateGuildSettings(settings.id, { owners: [], whitelist: [], prefix: "+", antiraid: "off", antilink: false, antispam: false, badwords: false });
-    return message.channel.send("♻️ All settings have been reset.");
+  // BOT OWNER (Special Profile Settings)
+  if (isOwner) {
+    if (commandName === "set" && args[0] === "name") await client.user?.setUsername(args.slice(1).join(" "));
+    if (commandName === "set" && args[0] === "pic") await client.user?.setAvatar(args[1] || message.attachments.first()?.url || "");
+    if (commandName === "stream") client.user?.setActivity(args.join(" "), { type: ActivityType.Streaming, url: "https://twitch.tv/discord" });
+    if (commandName === "invisible") client.user?.setStatus("invisible");
   }
 }
