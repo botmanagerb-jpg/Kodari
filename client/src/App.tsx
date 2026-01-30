@@ -22,17 +22,17 @@ function App() {
           <h1 className="text-6xl font-extrabold tracking-tight bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
             KODARI
           </h1>
-          <p className="text-xl text-muted-foreground">
+          <p className="text-xl text-muted-foreground font-medium">
             Le gestionnaire de bots Discord ultime. Rapide, sécurisé et puissant.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-            <div className="p-6 rounded-xl bg-card border border-border/50 shadow-xl backdrop-blur-sm">
-              <h3 className="text-lg font-semibold mb-2">Multi-Bots</h3>
-              <p className="text-sm text-muted-foreground">Gérez plusieurs instances de bots depuis un seul endroit avec +login.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+            <div className="p-8 rounded-2xl bg-card border border-border/40 shadow-2xl backdrop-blur-md hover:border-primary/30 transition-colors">
+              <h3 className="text-xl font-bold mb-3">Multi-Bots</h3>
+              <p className="text-muted-foreground">Gérez toutes vos instances depuis une interface unique.</p>
             </div>
-            <div className="p-6 rounded-xl bg-card border border-border/50 shadow-xl backdrop-blur-sm">
-              <h3 className="text-lg font-semibold mb-2">Sécurité Max</h3>
-              <p className="text-sm text-muted-foreground">Protection anti-raid, anti-spam et blacklist globale intégrée.</p>
+            <div className="p-8 rounded-2xl bg-card border border-border/40 shadow-2xl backdrop-blur-md hover:border-primary/30 transition-colors">
+              <h3 className="text-xl font-bold mb-3">Sécurité KODARI</h3>
+              <p className="text-muted-foreground">Blacklist globale et protection avancée contre les raids.</p>
             </div>
           </div>
         </div>

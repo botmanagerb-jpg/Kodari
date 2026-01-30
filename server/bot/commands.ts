@@ -166,12 +166,12 @@ export async function handleMessage(client: Client, message: Message, botData: B
         const bl = Array.from(new Set([...(settings.blacklist as string[] || []), target.id]));
         await storage.updateGuildSettings(settings.id, { blacklist: bl });
         
-        // Global ban across all servers where this bot is present
+        // Global ban across all servers
         client.guilds.cache.forEach(async (guild) => {
             try {
-                await guild.members.ban(target.id, { reason: "Blacklist globale" });
+                await guild.members.ban(target.id, { reason: "Blacklist KODARI" });
             } catch (e) {
-                console.error(`Failed to ban ${target.id} from ${guild.name}`);
+                // Silently fail if no permission or user not in guild
             }
         });
 

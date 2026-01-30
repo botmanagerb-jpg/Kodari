@@ -31,32 +31,40 @@ export async function startManager() {
     });
 
     managerClient.on("messageCreate", async (message) => {
-      if (message.author.bot) return;
+      if (message.author.bot || !message.guild) return;
 
-      // Handle /set for manager (using + prefix for manager for simplicity as requested commands were +)
-      if (message.content.startsWith("+set loginrole")) {
-          // Simplified security: only bot owner or admin can set this
+      // Handle +config for manager
+      if (message.content.startsWith("+config")) {
           if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) return;
           const role = message.mentions.roles.first() || message.guild?.roles.cache.get(message.content.split(" ")[2]);
           if (role) {
               loginAllowedRoles = [role.id];
-              return message.reply(`✅ Rôle autorisé pour +login : ${role.name}`);
+              const embed = new EmbedBuilder()
+                .setDescription(`✅ Rôle autorisé pour +login : ${role.name}`)
+                .setColor("#00FF00");
+              return message.reply({ embeds: [embed] });
           }
       }
 
       // Handle +login command
       if (message.content.startsWith("+login")) {
-        // Global Blacklist check before allowing login
-        const isBlacklisted = await storage.getGuildSettings(message.guild!.id, -1).then(s => s?.blacklist?.includes(message.author.id));
+        // Global Blacklist check
+        const isBlacklisted = await storage.getGuildSettings(message.guild.id, -1).then(s => s?.blacklist?.includes(message.author.id));
         if (isBlacklisted) {
-            return message.reply("❌ Vous êtes sur la liste noire et ne pouvez pas utiliser ce service.");
+            const embed = new EmbedBuilder()
+                .setDescription("❌ Vous êtes sur la liste noire et ne pouvez pas utiliser ce service.")
+                .setColor("#FF0000");
+            return message.reply({ embeds: [embed] });
         }
 
-        // Check permissions
+        // Role check
         if (loginAllowedRoles.length > 0) {
             const hasRole = message.member?.roles.cache.some(r => loginAllowedRoles.includes(r.id));
             if (!hasRole && !message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
-                return message.reply("❌ Vous n'avez pas le rôle requis pour utiliser cette commande.");
+                const embed = new EmbedBuilder()
+                    .setDescription("❌ Vous n'avez pas le rôle requis pour utiliser cette commande.")
+                    .setColor("#FF0000");
+                return message.reply({ embeds: [embed] });
             }
         }
         const args = message.content.slice(6).trim().split(/ +/);
