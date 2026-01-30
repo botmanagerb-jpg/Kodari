@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm run start",
+    "startCommand": "npx tsx server/index.ts",
     "runtime": "V2",
     "numReplicas": 1,
     "sleepApplication": false,
