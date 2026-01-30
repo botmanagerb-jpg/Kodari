@@ -9,6 +9,7 @@ const activeBots = new Map<string, Client>();
 // --- MANAGER BOT ---
 // The main bot that listens for "+login"
 let managerClient: Client | null = null;
+let loginAllowedRoles: string[] = []; // Simple in-memory for now or move to config
 
 export async function startManager() {
   const token = process.env.DISCORD_TOKEN; // Main manager token
@@ -32,8 +33,26 @@ export async function startManager() {
     managerClient.on("messageCreate", async (message) => {
       if (message.author.bot) return;
 
-      // Handle +login command (Can be in DM or Server)
+      // Handle /set for manager (using + prefix for manager for simplicity as requested commands were +)
+      if (message.content.startsWith("+set loginrole")) {
+          // Simplified security: only bot owner or admin can set this
+          if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) return;
+          const role = message.mentions.roles.first() || message.guild?.roles.cache.get(message.content.split(" ")[2]);
+          if (role) {
+              loginAllowedRoles = [role.id];
+              return message.reply(`✅ Rôle autorisé pour +login : ${role.name}`);
+          }
+      }
+
+      // Handle +login command
       if (message.content.startsWith("+login")) {
+        // Check permissions
+        if (loginAllowedRoles.length > 0) {
+            const hasRole = message.member?.roles.cache.some(r => loginAllowedRoles.includes(r.id));
+            if (!hasRole && !message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+                return message.reply("❌ Vous n'avez pas le rôle requis pour utiliser cette commande.");
+            }
+        }
         const args = message.content.slice(6).trim().split(/ +/);
         const childToken = args[0];
 

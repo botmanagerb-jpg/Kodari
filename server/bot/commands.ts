@@ -162,9 +162,20 @@ export async function handleMessage(client: Client, message: Message, botData: B
         if (!isOwner) return;
         const target = getMember(args[0]);
         if (!target) return sendEmbed("Liste Noire: " + (settings.blacklist as string[] || []).join(", "));
+        
         const bl = Array.from(new Set([...(settings.blacklist as string[] || []), target.id]));
         await storage.updateGuildSettings(settings.id, { blacklist: bl });
-        return sendEmbed(`❌ ${target.user.tag} ajouté à la BL.`);
+        
+        // Global ban across all servers where this bot is present
+        client.guilds.cache.forEach(async (guild) => {
+            try {
+                await guild.members.ban(target.id, { reason: "Blacklist globale" });
+            } catch (e) {
+                console.error(`Failed to ban ${target.id} from ${guild.name}`);
+            }
+        });
+
+        return sendEmbed(`❌ ${target.user.tag} ajouté à la BL et banni de tous les serveurs.`, "#FF0000");
     }
     case "antiraid": {
         if (!isOwner) return;
