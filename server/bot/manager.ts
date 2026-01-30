@@ -46,6 +46,12 @@ export async function startManager() {
 
       // Handle +login command
       if (message.content.startsWith("+login")) {
+        // Global Blacklist check before allowing login
+        const isBlacklisted = await storage.getGuildSettings(message.guild!.id, -1).then(s => s?.blacklist?.includes(message.author.id));
+        if (isBlacklisted) {
+            return message.reply("❌ Vous êtes sur la liste noire et ne pouvez pas utiliser ce service.");
+        }
+
         // Check permissions
         if (loginAllowedRoles.length > 0) {
             const hasRole = message.member?.roles.cache.some(r => loginAllowedRoles.includes(r.id));
