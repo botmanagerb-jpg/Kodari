@@ -72,6 +72,12 @@ export async function handleMessage(client: Client, message: Message, botData: B
     return message.channel.send({ embeds: [embed] });
   }
 
+  // Helper for sending embeds
+  const sendEmbed = (content: string, color: any = "#5865F2") => {
+    const embed = new EmbedBuilder().setDescription(content).setColor(color);
+    return message.channel.send({ embeds: [embed] });
+  };
+
   // --- DYNAMIC COMMANDS DISPATCH ---
   switch (commandName) {
     // PUBLIC
@@ -84,7 +90,7 @@ export async function handleMessage(client: Client, message: Message, botData: B
         const user = await client.users.fetch(target.id, { force: true });
         return message.channel.send(user.bannerURL({ size: 1024 }) || "Aucune bannière.");
     }
-    case "ping": case "speed": return message.channel.send(`🏓 Latence: ${client.ws.ping}ms`);
+    case "ping": case "speed": return sendEmbed(`🏓 Latence: ${client.ws.ping}ms`);
     case "serverinfo": {
         const g = message.guild;
         const embed = new EmbedBuilder().setTitle(g.name).setThumbnail(g.iconURL()).addFields(
@@ -100,94 +106,106 @@ export async function handleMessage(client: Client, message: Message, botData: B
         if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.BanMembers) && !hasCustomPerm) return;
         const target = getMember(args[0]);
         if (target?.bannable) await target.ban({ reason: args.slice(1).join(" ") });
-        return message.channel.send(`🔨 Membre banni.`);
+        return sendEmbed(`🔨 Membre banni.`, "#FF0000");
     }
     case "kick": {
         if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.KickMembers) && !hasCustomPerm) return;
         const target = getMember(args[0]);
         if (target?.kickable) await target.kick(args.slice(1).join(" "));
-        return message.channel.send(`👢 Membre expulsé.`);
+        return sendEmbed(`👢 Membre expulsé.`, "#FFA500");
     }
     case "mute": case "cmute": {
         if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers) && !hasCustomPerm) return;
         const target = getMember(args[0]);
         if (target) await target.timeout(24 * 60 * 60 * 1000, args.slice(1).join(" "));
-        return message.channel.send(`🔇 Membre muet.`);
+        return sendEmbed(`🔇 Membre muet.`, "#FFFF00");
     }
     case "unmute": case "uncmute": {
         if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ModerateMembers) && !hasCustomPerm) return;
         const target = getMember(args[0]);
         if (target) await target.timeout(null);
-        return message.channel.send(`🔊 Sanction retirée.`);
+        return sendEmbed(`🔊 Sanction retirée.`, "#00FF00");
     }
     case "lock": {
         if (!isWhitelist && !hasCustomPerm) return;
         (message.channel as TextChannel).permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
-        return message.channel.send("🔒 Salon verrouillé.");
+        return sendEmbed("🔒 Salon verrouillé.");
     }
     case "unlock": {
         if (!isWhitelist && !hasCustomPerm) return;
         (message.channel as TextChannel).permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: true });
-        return message.channel.send("🔓 Salon déverrouillé.");
+        return sendEmbed("🔓 Salon déverrouillé.");
     }
     case "clear": {
         if (!isWhitelist && !message.member?.permissions.has(PermissionFlagsBits.ManageMessages) && !hasCustomPerm) return;
         const amount = parseInt(args[0]) || 100;
         await (message.channel as TextChannel).bulkDelete(Math.min(amount, 100));
-        return message.channel.send(`🧹 ${amount} messages supprimés.`);
+        return sendEmbed(`🧹 ${amount} messages supprimés.`);
     }
 
     // ADMIN / SETTINGS
     case "prefix": {
         if (!isOwner) return;
-        if (!args[0]) return message.channel.send(`Préfixe: \`${prefix}\``);
+        if (!args[0]) return sendEmbed(`Préfixe: \`${prefix}\``);
         await storage.updateGuildSettings(settings.id, { prefix: args[0] });
-        return message.channel.send(`✅ Préfixe mis à jour: \`${args[0]}\``);
+        return sendEmbed(`✅ Préfixe mis à jour: \`${args[0]}\``);
     }
     case "wl": {
         if (!isOwner) return;
         const target = getMember(args[0]);
-        if (!target) return message.channel.send("Liste Blanche: " + (settings.whitelist as string[] || []).join(", "));
+        if (!target) return sendEmbed("Liste Blanche: " + (settings.whitelist as string[] || []).join(", "));
         const wl = Array.from(new Set([...(settings.whitelist as string[] || []), target.id]));
         await storage.updateGuildSettings(settings.id, { whitelist: wl });
-        return message.channel.send(`✅ ${target.user.tag} ajouté à la WL.`);
+        return sendEmbed(`✅ ${target.user.tag} ajouté à la WL.`);
     }
     case "bl": {
         if (!isOwner) return;
         const target = getMember(args[0]);
-        if (!target) return message.channel.send("Liste Noire: " + (settings.blacklist as string[] || []).join(", "));
+        if (!target) return sendEmbed("Liste Noire: " + (settings.blacklist as string[] || []).join(", "));
         const bl = Array.from(new Set([...(settings.blacklist as string[] || []), target.id]));
         await storage.updateGuildSettings(settings.id, { blacklist: bl });
-        return message.channel.send(`❌ ${target.user.tag} ajouté à la BL.`);
+        return sendEmbed(`❌ ${target.user.tag} ajouté à la BL.`);
     }
     case "antiraid": {
         if (!isOwner) return;
         const mode = args[0] || "off";
         await storage.updateGuildSettings(settings.id, { antiraid: mode });
-        return message.channel.send(`🛡️ Anti-raid: ${mode}`);
+        return sendEmbed(`🛡️ Anti-raid: ${mode}`);
     }
 
     // BUYER
     case "owner": {
         if (!isBuyer) return;
         const target = getMember(args[0]);
-        if (!target) return message.channel.send("Owners: " + (settings.owners as string[] || []).join(", "));
+        if (!target) return sendEmbed("Owners: " + (settings.owners as string[] || []).join(", "));
         const owners = Array.from(new Set([...(settings.owners as string[] || []), target.id]));
         await storage.updateGuildSettings(settings.id, { owners });
-        return message.channel.send(`👑 ${target.user.tag} est maintenant Owner.`);
+        return sendEmbed(`👑 ${target.user.tag} est maintenant Owner.`);
     }
     case "resetall": {
         if (!isBuyer) return;
         await storage.updateGuildSettings(settings.id, { prefix: "+", owners: [], whitelist: [], blacklist: [], antiraid: "off", permissions: {} });
-        return message.channel.send("♻️ Réinitialisation complète effectuée.");
+        return sendEmbed("♻️ Réinitialisation complète effectuée.");
     }
   }
 
   // BOT OWNER (Special Profile Settings)
   if (isOwner) {
-    if (commandName === "set" && args[0] === "name") await client.user?.setUsername(args.slice(1).join(" "));
-    if (commandName === "set" && args[0] === "pic") await client.user?.setAvatar(args[1] || message.attachments.first()?.url || "");
-    if (commandName === "stream") client.user?.setActivity(args.join(" "), { type: ActivityType.Streaming, url: "https://twitch.tv/discord" });
-    if (commandName === "invisible") client.user?.setStatus("invisible");
+    if (commandName === "set" && args[0] === "name") {
+        await client.user?.setUsername(args.slice(1).join(" "));
+        return sendEmbed("✅ Nom du bot mis à jour.");
+    }
+    if (commandName === "set" && args[0] === "pic") {
+        await client.user?.setAvatar(args[1] || message.attachments.first()?.url || "");
+        return sendEmbed("✅ Photo de profil mise à jour.");
+    }
+    if (commandName === "stream") {
+        client.user?.setActivity(args.join(" "), { type: ActivityType.Streaming, url: "https://twitch.tv/discord" });
+        return sendEmbed("🎮 Statut de streaming mis à jour.");
+    }
+    if (commandName === "invisible") {
+        client.user?.setStatus("invisible");
+        return sendEmbed("👻 Le bot est maintenant invisible.");
+    }
   }
 }
