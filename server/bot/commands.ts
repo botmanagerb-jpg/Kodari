@@ -280,6 +280,49 @@ export async function handleMessage(client: Client, message: Message, botData: B
     return message.channel.send(`❌ Removed ${target.user.tag} from owners.`);
   }
 
+  if (commandName === "set" && args[0] === "perm") {
+    if (!isOwner) return;
+    const cmd = args[1];
+    const target = getMember(args[2]) || getRole(args[2]);
+    if (!cmd || !target) return message.channel.send("Usage: `+set perm <command> <role/member>`");
+    
+    const perms = (settings.permissions as any) || {};
+    if (!perms[cmd]) perms[cmd] = { roles: [], members: [] };
+    
+    if (target instanceof Role) {
+        perms[cmd].roles = Array.from(new Set([...perms[cmd].roles, target.id]));
+    } else {
+        perms[cmd].members = Array.from(new Set([...perms[cmd].members, target.id]));
+    }
+    
+    await storage.updateGuildSettings(settings.id, { permissions: perms });
+    return message.channel.send(`✅ Permission set for \`${cmd}\` to ${target}`);
+  }
+
+  if (commandName === "del" && args[0] === "perm") {
+    if (!isOwner) return;
+    const cmd = args[1];
+    const target = getMember(args[2]) || getRole(args[2]);
+    if (!cmd || !target) return message.channel.send("Usage: `+del perm <command> <role/member>`");
+    
+    const perms = (settings.permissions as any) || {};
+    if (perms[cmd]) {
+        if (target instanceof Role) {
+            perms[cmd].roles = perms[cmd].roles.filter((id: string) => id !== target.id);
+        } else {
+            perms[cmd].members = perms[cmd].members.filter((id: string) => id !== target.id);
+        }
+        await storage.updateGuildSettings(settings.id, { permissions: perms });
+    }
+    return message.channel.send(`❌ Permission removed for \`${cmd}\` for ${target}`);
+  }
+
+  if (commandName === "clear" && args[0] === "perms") {
+    if (!isOwner) return;
+    await storage.updateGuildSettings(settings.id, { permissions: {} });
+    return message.channel.send("♻️ All custom permissions cleared.");
+  }
+
   if (commandName === "resetall") {
     if (!isBuyer) return;
     await storage.updateGuildSettings(settings.id, { owners: [], whitelist: [], prefix: "+", antiraid: "off", antilink: false, antispam: false, badwords: false });

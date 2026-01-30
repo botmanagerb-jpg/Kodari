@@ -41,6 +41,9 @@ export const guildSettings = pgTable("guild_settings", {
   muterole: text("muterole"),
   raidpingRole: text("raidping_role"),
   
+  // Custom Permissions
+  permissions: jsonb("permissions").default({}), // { "command": { "roles": [], "members": [] } }
+  
   // Limits & Config
   config: jsonb("config").default({
     badwords: [],
